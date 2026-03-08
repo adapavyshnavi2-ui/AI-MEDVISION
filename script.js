@@ -7,6 +7,7 @@ let recognition = null;
 // 🔊 AUDIO SYSTEM
 const emergencySiren = new Audio('siren.mp3'); 
 emergencySiren.loop = true; 
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 // 📍 HIGH-PRECISION LOCATION
 navigator.geolocation.getCurrentPosition(p => {
@@ -106,7 +107,7 @@ function sendSOSMessage(reason) {
 
 function callAmbulance() { window.location.href = "tel:108"; }
 
-// 🔦 FEATURE: SOS MORSE CODE FLASHLIGHT
+// 🔦 FEATURE: SOS MORSE CODE FLASHLIGHT WITH SYNCHRONIZED SOUND
 let isFlashing = false;
 
 async function toggleSOSFlashlight() {
@@ -125,24 +126,42 @@ async function toggleSOSFlashlight() {
         btn.innerHTML = "🛑 Stop SOS Light";
         btn.style.background = "#ff1744";
 
+        // Morse Code SOS Pattern: 3 Short, 3 Long, 3 Short
         const pattern = [200,200, 200,200, 200,600, 600,200, 600,200, 600,600, 200,200, 200,200, 200,1000];
         let step = 0;
 
-        const flash = async () => {
+        const flashAndBeep = async () => {
             if (!isFlashing) {
                 track.applyConstraints({ advanced: [{ torch: false }] });
                 stream.getTracks().forEach(t => t.stop());
                 return;
             }
             const isOn = step % 2 === 0;
+            const duration = pattern[step];
+
             await track.applyConstraints({ advanced: [{ torch: isOn }] });
+            if (isOn) playBeep(duration);
+
             setTimeout(() => {
                 step = (step + 1) % pattern.length;
-                flash();
-            }, pattern[step]);
+                flashAndBeep();
+            }, duration);
         };
-        flash();
-    } catch (e) { alert("Flashlight access denied or not supported."); }
+        flashAndBeep();
+    } catch (e) { alert("Flashlight/Sound access denied."); isFlashing = false; }
+}
+
+function playBeep(duration) {
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + (duration / 1000));
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + (duration / 1000));
 }
 
 // 📚 FEATURE: OFFLINE FIRST-AID GUIDES
@@ -219,7 +238,7 @@ function renderResult(data) {
     if (severity === "EMERGENCY") triggerGlobalEmergency("Critical Symptoms Detected");
     else stopEmergencySiren();
 
-    const mapSearchUrl = `https://www.google.com/maps/search/hospital/@${rawCoords.lat},${rawCoords.lon},14z`;
+    const mapSearchUrl = `https://www.google.com/maps?q=${rawCoords.lat},${rawCoords.lon}`;
 
     resultArea.innerHTML = `
         <div class="glass-card result-card ${severity.toLowerCase()}">
