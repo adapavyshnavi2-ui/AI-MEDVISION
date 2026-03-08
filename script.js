@@ -4,8 +4,8 @@ let rawCoords = { lat: 0, lon: 0 };
 let currentLang = 'en-IN'; 
 let recognition = null; 
 
-// 🔊 FIXED AUDIO PATH (Removed /static/ to prevent error)
-const emergencySiren = new Audio('siren.mp3');
+// 🔊 AUDIO SYSTEM (Fixed Path for GitHub Pages)
+const emergencySiren = new Audio('siren.mp3'); 
 emergencySiren.loop = true; 
 
 // 📍 HIGH-PRECISION LOCATION
@@ -22,10 +22,14 @@ function changeLang(lang) {
     currentLang = lang;
     haptic('success');
     window.speechSynthesis.cancel();
-    let msg = (lang === 'te-IN') ? "తెలుగు భాష సెట్ చేయబడింది" : (lang === 'hi-IN') ? "हिंदी भाषा सक्रिय है" : "English language activated";
+    
+    let msg = (lang === 'te-IN') ? "తెలుగు భాష సెట్ చేయబడింది" : 
+              (lang === 'hi-IN') ? "हिंदी भाषा सक्रिय है" : "English language activated";
+    
     if (lang === 'te-IN') updateUIForLang("మాట్లాడండి", "🚑 అంబులెన్స్ కాల్", "విశ్లేషణ ప్రారంభించండి");
     else if (lang === 'hi-IN') updateUIForLang("बात करने के लिए टैप करें", "🚑 एम्बुलेंस कॉल", "विश्लेषण शुरू करें");
     else updateUIForLang("🎤 Tap to Speak", "🚑 Call Ambulance (108)", "🧠 Start AI Analysis");
+    
     speakResult(msg);
 }
 
@@ -43,13 +47,18 @@ const startBtn = document.getElementById("start-btn");
 if (startBtn) {
     startBtn.onclick = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) { alert("❌ Your browser doesn't support Speech."); return; }
+        if (!SpeechRecognition) {
+            alert("❌ Your browser doesn't support Speech.");
+            return;
+        }
         if (recognition) { try { recognition.stop(); } catch(e) {} }
+
         recognition = new SpeechRecognition();
         recognition.lang = currentLang;
         haptic('success');
         startBtn.innerText = "Listening... 🎤";
         startBtn.style.background = "#ff1744"; 
+
         recognition.onresult = (event) => {
             const transcript = event.results[0][0].transcript;
             symptoms.push(transcript);
@@ -63,7 +72,8 @@ if (startBtn) {
 
 function resetVoiceUI() {
     if (!startBtn) return;
-    startBtn.innerText = (currentLang === 'te-IN') ? "మాట్లాడండి" : (currentLang === 'hi-IN') ? "बात करने के लिए टैప करें" : "🎤 Tap to Speak";
+    startBtn.innerText = (currentLang === 'te-IN') ? "మాట్లాడండి" : 
+                        (currentLang === 'hi-IN') ? "बात करने के लिए टैप करें" : "🎤 Tap to Speak";
     startBtn.style.background = ""; 
 }
 
@@ -72,7 +82,9 @@ function triggerGlobalEmergency(reason = "Medical Emergency") {
     haptic('panic');
     emergencySiren.play().catch(() => {});
     document.body.classList.add('emergency-flash');
-    let confirmMsg = (currentLang === 'te-IN') ? "🚨 అత్యవసర పరిస్థితి! SOS ని సక్రియం చేయాలా?" : (currentLang === 'hi-IN') ? "🚨 आपातकालीन स्थिति! क्या SOS सक्रिय करें?" : `🚨 RISK ALERT: ${reason.toUpperCase()}! Activate SOS?`;
+    let confirmMsg = (currentLang === 'te-IN') ? "🚨 అత్యవసర పరిస్థితి! SOS ని సక్రియం చేయాలా?" : 
+                     (currentLang === 'hi-IN') ? "🚨 आपातकालीन स्थिति! क्या SOS सक्रिय करें?" : 
+                     `🚨 RISK ALERT: ${reason.toUpperCase()}! Activate SOS?`;
     if (confirm(confirmMsg)) {
         sendSOSMessage(reason);
         setTimeout(() => callAmbulance(), 1500); 
@@ -87,6 +99,7 @@ function stopEmergencySiren() {
 
 function sendSOSMessage(reason) {
     const contactNumber = "108"; 
+    // Updated Template Literal for SOS SMS
     const mapsLink = `https://www.google.com/maps?q=${rawCoords.lat},${rawCoords.lon}`;
     const messageBody = `🆘 EMERGENCY SOS\nReason: ${reason}\nLoc: ${locationStr}\nMap: ${mapsLink}`;
     window.location.href = `sms:${contactNumber}?body=${encodeURIComponent(messageBody)}`;
@@ -115,54 +128,57 @@ function removeSymptom(index) {
     updateChips();
 }
 
-// 🧠 LOCAL AI (Removed 'fetch' to fix Connection Error)
+// 🧠 LOCAL AI ANALYSIS
 const analyzeBtn = document.getElementById("analyze-btn");
 if(analyzeBtn) analyzeBtn.onclick = () => {
     if (symptoms.length === 0) return alert("Please add symptoms first!");
+    
     const resultArea = document.getElementById("result");
     resultArea.innerHTML = `<div class="loader-container"><div class="heart-pulse">❤️</div><p>Scanning Risks...</p></div>`;
     
-    // Process locally - No internet connection needed for this part
     setTimeout(() => {
         const symptomsStr = symptoms.join(" ").toLowerCase();
         let severity = "LOW";
-        let analysis = "Assessment complete. No immediate life-threatening risks detected.";
+        let analysis = "Assessment complete. No immediate life-threatening risks detected. Rest and keep hydrated.";
 
-        if (symptomsStr.includes("chest") || symptomsStr.includes("breath") || symptomsStr.includes("heart")) {
+        if (symptomsStr.includes("chest") || symptomsStr.includes("breath") || symptomsStr.includes("unconscious") || symptomsStr.includes("heart")) {
             severity = "EMERGENCY";
-            analysis = "🚨 CRITICAL: High risk detected. Seek immediate help!";
-        } else if (symptomsStr.includes("fever") || symptomsStr.includes("pain")) {
+            analysis = "🚨 CRITICAL: High risk of Cardiac or Respiratory distress. Please seek immediate help!";
+        } else if (symptomsStr.includes("fever") || symptomsStr.includes("pain") || symptomsStr.includes("cough") || symptomsStr.includes("headache")) {
             severity = "MEDIUM";
-            analysis = "⚠️ MODERATE: Symptoms require medical attention.";
+            analysis = "⚠️ MODERATE: Symptoms require medical attention. Monitor vitals and visit a clinic.";
         }
-        
-        renderResult({ severity, analysis, hospital: "Nearest Hospital", h_phone: "108" });
-    }, 1200); 
+
+        renderResult({
+            severity: severity,
+            analysis: analysis,
+            hospital: "Nearest Emergency Hospital",
+            h_phone: "108"
+        });
+    }, 1500); 
 };
 
-// 📊 RENDERING RESULTS (Black Text & Green Navigation)
+// 📊 RENDERING RESULTS (Fixed Dynamic Map Search)
 function renderResult(data) {
     const resultArea = document.getElementById("result");
     const severity = data.severity || "LOW"; 
     
-    if (severity === "EMERGENCY") triggerGlobalEmergency("Critical Symptoms"); 
+    if (severity === "EMERGENCY") triggerGlobalEmergency("Critical Symptoms Detected"); 
     else stopEmergencySiren();
 
-    // FIXED: Correct Google Maps Search Link
-    const mapSearchUrl = `https://www.google.com/maps/search/hospital/@${rawCoords.lat},${rawCoords.lon},15z`;
+    // THIS LINK GENERATES A REAL SEARCH FOR HOSPITALS NEAR YOUR GPS
+    const mapSearchUrl = `https://www.google.com/maps/search/hospitals/@${rawCoords.lat},${rawCoords.lon},14z`;
 
     resultArea.innerHTML = `
         <div class="glass-card result-card ${severity.toLowerCase()}">
             <h3 style="margin:0;">📋 Analysis: ${severity}</h3>
             <p style="line-height:1.6; margin: 15px 0;">${data.analysis}</p>
-            
-            <div id="emergency-hub-local" style="display: flex; flex-direction: column; background: white; padding: 15px; border-radius: 12px; border: 1px solid #ddd; text-align: center; gap: 10px;">
-                <p style="color: #000000 !important; font-weight: 800; font-size: 1.2em; margin: 0;">
-                    🏥 ${data.hospital}
-                </p>
-                <button class="emergency-btn" style="background:#d32f2f; color:white;" onclick="window.location.href='tel:${data.h_phone}'">📞 Call 108</button>
-                <button class="emergency-btn" style="background:#10b981; color:white;" onclick="window.open('${mapSearchUrl}', '_blank')">
-                    📍 Start Navigation
+            <div id="emergency-hub" style="display:block; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px;">
+                <p>🏥 Facility: ${data.hospital}</p>
+                <button class="emergency-btn" onclick="window.location.href='tel:${data.h_phone}'">📞 Call Help</button>
+                <button class="emergency-btn" style="background:#10b981; margin-top:10px;" 
+                        onclick="window.open('${mapSearchUrl}', '_blank')">
+                        📍 Navigate to Nearby Hospitals
                 </button>
             </div>
         </div>`;
@@ -172,7 +188,7 @@ function renderResult(data) {
 function clearAllData() {
     symptoms = []; 
     updateChips(); 
-    document.getElementById("result").innerHTML = `<p style="text-align:center; color:#94a3b8; margin-top:100px;">📉 No active analysis.</p>`;
+    document.getElementById("result").innerHTML = `<p style="text-align:center; color:#94a3b8; margin-top:50px;">📉 No active analysis.</p>`;
     stopEmergencySiren();
     haptic('success');
 }
