@@ -3,9 +3,8 @@ let locationStr = "GPS: Not Available";
 let rawCoords = { lat: 0, lon: 0 };
 let currentLang = 'en-IN'; 
 let recognition = null; 
-// TOP OF SCRIPT.JS
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-// 🔊 AUDIO SYSTEM
+
+// 🔊 AUDIO SYSTEM - Initialized at the top
 const emergencySiren = new Audio('siren.mp3'); 
 emergencySiren.loop = true; 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -75,7 +74,7 @@ if (startBtn) {
 function resetVoiceUI() {
     if (!startBtn) return;
     startBtn.innerText = (currentLang === 'te-IN') ? "మాట్లాడండి" : 
-                        (currentLang === 'hi-IN') ? "बात करने के लिए टैप करें" : "🎤 Tap to Speak";
+                        (currentLang === 'hi-IN') ? "बात करने के लिए टैప करें" : "🎤 Tap to Speak";
     startBtn.style.background = ""; 
 }
 
@@ -101,17 +100,18 @@ function stopEmergencySiren() {
 
 function sendSOSMessage(reason) {
     const contactNumber = "108"; 
-    const mapsLink = `https://www.google.com/maps?q=${rawCoords.lat},${rawCoords.lon}`;
+    const mapsLink = `http://googleusercontent.com/maps.google.com/search?q=${rawCoords.lat},${rawCoords.lon}`;
     const messageBody = `🆘 EMERGENCY SOS\nReason: ${reason}\nLoc: ${locationStr}\nMap: ${mapsLink}`;
     window.location.href = `sms:${contactNumber}?body=${encodeURIComponent(messageBody)}`;
 }
 
 function callAmbulance() { window.location.href = "tel:108"; }
 
-// 🔦 FEATURE: SOS MORSE CODE FLASHLIGHT WITH SYNCHRONIZED SOUND
+// 🔦 FEATURE: SOS MORSE CODE FLASHLIGHT WITH AUDIO FIX
 let isFlashing = false;
+
 async function toggleSOSFlashlight() {
-    // 1. UNLOCK THE SOUND: This tells the browser the user wants audio
+    // UNLOCK AUDIO: Critical for browsers that block sound
     if (audioCtx.state === 'suspended') {
         await audioCtx.resume();
     }
@@ -125,63 +125,52 @@ async function toggleSOSFlashlight() {
     }
 
     try {
-        // Request camera for the flashlight
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         const track = stream.getVideoTracks()[0];
         isFlashing = true;
         btn.innerHTML = "🛑 Stop SOS Light";
         btn.style.background = "#ff1744";
 
-        // Morse SOS Pattern: 3 Short, 3 Long, 3 Short
         const pattern = [200,200, 200,200, 200,600, 600,200, 600,200, 600,600, 200,200, 200,200, 200,1000];
         let step = 0;
 
         const flashAndBeep = async () => {
             if (!isFlashing) {
-                // Cleanup: Turn off torch and stop camera
                 await track.applyConstraints({ advanced: [{ torch: false }] });
                 stream.getTracks().forEach(t => t.stop());
                 return;
             }
-
             const isOn = step % 2 === 0;
             const duration = pattern[step];
 
-            // Toggle Light
             await track.applyConstraints({ advanced: [{ torch: isOn }] });
-
-            // Toggle Sound
-            if (isOn) {
-                playBeep(duration);
-            }
+            if (isOn) playBeep(duration); // Play the beep during the light pulse
 
             setTimeout(() => {
                 step = (step + 1) % pattern.length;
                 flashAndBeep();
             }, duration);
         };
-        
         flashAndBeep();
     } catch (e) { 
-        console.error(e);
-        alert("Permission Denied: Please allow Camera access for the SOS Light."); 
-        isFlashing = false;
+        alert("Camera or Sound access denied. Please allow permissions."); 
+        isFlashing = false; 
     }
 }
-
-
-
-        
 
 function playBeep(duration) {
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
+    
     oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch medical beep
+    
     gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + (duration / 1000));
+    
     oscillator.connect(gainNode);
     gainNode.connect(audioCtx.destination);
+    
     oscillator.start();
     oscillator.stop(audioCtx.currentTime + (duration / 1000));
 }
@@ -260,7 +249,7 @@ function renderResult(data) {
     if (severity === "EMERGENCY") triggerGlobalEmergency("Critical Symptoms Detected");
     else stopEmergencySiren();
 
-    const mapSearchUrl = `https://www.google.com/maps?q=${rawCoords.lat},${rawCoords.lon}`;
+    const mapSearchUrl = `https://www.google.com/maps/search/?api=1&query=${rawCoords.lat},${rawCoords.lon}`;
 
     resultArea.innerHTML = `
         <div class="glass-card result-card ${severity.toLowerCase()}">
@@ -312,5 +301,3 @@ function haptic(type) {
     if (!navigator.vibrate) return;
     type === 'panic' ? navigator.vibrate([500, 200, 500, 200, 500]) : navigator.vibrate(40);
 }
-
-
