@@ -3,7 +3,7 @@ let locationStr = "GPS: Not Available";
 let rawCoords = { lat: 0, lon: 0 };
 let currentLang = 'en-IN'; 
 let recognition = null; 
-
+const sosBeepSource = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
 // 🔊 AUDIO SYSTEM
 const emergencySiren = new Audio('siren.mp3'); 
 emergencySiren.loop = true; 
@@ -114,10 +114,41 @@ function callAmbulance() { window.location.href = "tel:108"; }
 // 🔦 FEATURE: SOS MORSE CODE FLASHLIGHT
 let isFlashing = false;
 
+// Add this near the top of your script
+
+
+function playBeep(duration) {
+    // FORCE RESUME: Browsers suspend audio context constantly to save battery
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+
+    // METHOD 1: Fresh HTML5 Audio Object (Most reliable for mobile)
+    const pulse = new Audio(sosBeepSource);
+    pulse.volume = 1.0;
+    pulse.play().catch(() => {
+        // METHOD 2: Oscillator Fallback (Mathematical Beep)
+        try {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + (duration / 1000));
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + (duration / 1000));
+        } catch(e) { console.error("All audio methods failed."); }
+    });
+}
+
 async function toggleSOSFlashlight() {
-    // 2. UNLOCK BOTH SYSTEMS
-    if (audioCtx.state === 'suspended') { await audioCtx.resume(); }
-    sosSound.play().then(() => { sosSound.pause(); sosSound.currentTime = 0; }).catch(() => {});
+    // BRUTE FORCE UNLOCK: Play a silent sound to "wake up" the speakers
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    const wakeUp = new Audio(sosBeepSource);
+    wakeUp.muted = true; 
+    wakeUp.play().then(() => wakeUp.pause()).catch(() => {});
 
     const btn = document.getElementById('flash-btn');
     if (isFlashing) {
@@ -156,27 +187,9 @@ async function toggleSOSFlashlight() {
         };
         flashAndBeep();
     } catch (e) { 
-        alert("Permissions denied."); 
+        alert("Camera access required for flashlight."); 
         isFlashing = false; 
     }
-}
-
-function playBeep(duration) {
-    // 3. TRY FILE FIRST (More reliable on mobile)
-    sosSound.currentTime = 0;
-    sosSound.play().catch(() => {
-        // Fallback to Math Beep if file fails
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
-        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + (duration / 1000));
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        oscillator.start();
-        oscillator.stop(audioCtx.currentTime + (duration / 1000));
-    });
 }
 
 // 📚 FEATURE: OFFLINE FIRST-AID GUIDES
@@ -305,3 +318,4 @@ function haptic(type) {
     if (!navigator.vibrate) return;
     type === 'panic' ? navigator.vibrate([500, 200, 500, 200, 500]) : navigator.vibrate(40);
 }
+
