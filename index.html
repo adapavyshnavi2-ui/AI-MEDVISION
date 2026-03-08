@@ -153,6 +153,20 @@
                 🚨 EMERGENCY SOS
             </button>
         </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+    <button onclick="toggleSOSFlashlight()" id="flash-btn" class="btn" style="background: #4527a0; font-size: 14px; padding: 15px;">
+        🔦 Morse SOS Light
+    </button>
+    <button onclick="showFirstAid()" class="btn" style="background: #2e7d32; font-size: 14px; padding: 15px;">
+        📚 First-Aid Guides
+    </button>
+</div>
+
+<div id="first-aid-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; color:white; padding:20px; overflow-y:auto;">
+    <button onclick="closeFirstAid()" style="float:right; background:none; border:1px solid white; color:white; padding:5px 10px; border-radius:5px;">Close ✕</button>
+    <h2 style="color:var(--primary);">Offline First-Aid</h2>
+    <div id="first-aid-content"></div>
+</div>
 
         <div class="glass-panel workspace">
             <div class="section-title">Diagnostic Input</div>
@@ -206,3 +220,4 @@
 </body>
 
 </html>
+
