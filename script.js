@@ -161,28 +161,52 @@ if(analyzeBtn) analyzeBtn.onclick = () => {
 // 📊 RENDERING RESULTS (Fixed Dynamic Map Search)
 function renderResult(data) {
     const resultArea = document.getElementById("result");
-    const severity = data.severity || "LOW"; 
+    const severity = data.severity || "LOW";
     
-    if (severity === "EMERGENCY") triggerGlobalEmergency("Critical Symptoms Detected"); 
+    if (severity === "EMERGENCY") triggerGlobalEmergency("Critical Symptoms Detected");
     else stopEmergencySiren();
 
-    // THIS LINK GENERATES A REAL SEARCH FOR HOSPITALS NEAR YOUR GPS
-    const mapSearchUrl = `https://www.google.com/maps/search/hospitals/@${rawCoords.lat},${rawCoords.lon},14z`;
+    const mapSearchUrl = `https://www.google.com/maps/search/hospital/@${rawCoords.lat},${rawCoords.lon},14z`;
 
     resultArea.innerHTML = `
         <div class="glass-card result-card ${severity.toLowerCase()}">
             <h3 style="margin:0;">📋 Analysis: ${severity}</h3>
             <p style="line-height:1.6; margin: 15px 0;">${data.analysis}</p>
-            <div id="emergency-hub" style="display:block; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px;">
-                <p>🏥 Facility: ${data.hospital}</p>
-                <button class="emergency-btn" onclick="window.location.href='tel:${data.h_phone}'">📞 Call Help</button>
-                <button class="emergency-btn" style="background:#10b981; margin-top:10px;" 
-                        onclick="window.open('${mapSearchUrl}', '_blank')">
-                        📍 Navigate to Nearby Hospitals
+            
+            <div id="emergency-hub" style="display: flex; flex-direction: column; background: white; padding: 15px; border-radius: 12px; border: 1px solid #ddd; text-align: center; gap: 10px;">
+                <p style="color: black; font-weight: 800; font-size: 1.1em; margin: 0;">
+                    🏥 ${data.hospital}
+                </p>
+                <button class="emergency-btn" style="background:#d32f2f; color:white;" onclick="window.location.href='tel:${data.h_phone}'">📞 Call 108</button>
+                <button class="emergency-btn" style="background:#10b981; color:white;" onclick="window.open('${mapSearchUrl}', '_blank')">
+                    📍 Start Navigation
                 </button>
+                
+                <button class="emergency-btn" style="background:#1a237e; color:white;" onclick="generateMedicQR()">
+                    📲 Generate Medic QR
+                </button>
+                <div id="qrcode-container" style="display:none; margin-top:10px; padding:10px; background:white; align-self:center;"></div>
             </div>
         </div>`;
     speakResult(data.analysis);
+}
+
+// NEW FUNCTION: Create the Offline QR Code
+function generateMedicQR() {
+    const container = document.getElementById("qrcode-container");
+    container.innerHTML = ""; // Clear old QR
+    container.style.display = "block";
+    
+    // Create a compact data string for the medic
+    const medicData = `VITALS-AI\nSev: ${symptoms.length > 0 ? 'Review' : 'Low'}\nSymp: ${symptoms.join(', ')}\nGPS: ${locationStr}`;
+    
+    new QRCode(container, {
+        text: medicData,
+        width: 150,
+        height: 150
+    });
+    
+    haptic('success');
 }
 
 function clearAllData() {
@@ -211,3 +235,4 @@ function haptic(type) {
     if (!navigator.vibrate) return;
     type === 'panic' ? navigator.vibrate([500, 200, 500, 200, 500]) : navigator.vibrate(40);
 }
+
