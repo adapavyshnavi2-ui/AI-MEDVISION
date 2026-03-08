@@ -3,7 +3,8 @@ let locationStr = "GPS: Not Available";
 let rawCoords = { lat: 0, lon: 0 };
 let currentLang = 'en-IN'; 
 let recognition = null; 
-
+// TOP OF SCRIPT.JS
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 // 🔊 AUDIO SYSTEM
 const emergencySiren = new Audio('siren.mp3'); 
 emergencySiren.loop = true; 
@@ -109,9 +110,8 @@ function callAmbulance() { window.location.href = "tel:108"; }
 
 // 🔦 FEATURE: SOS MORSE CODE FLASHLIGHT WITH SYNCHRONIZED SOUND
 let isFlashing = false;
-
 async function toggleSOSFlashlight() {
-    // FIX: This resumes the audio system when the user taps the button
+    // 1. UNLOCK THE SOUND: This tells the browser the user wants audio
     if (audioCtx.state === 'suspended') {
         await audioCtx.resume();
     }
@@ -123,39 +123,55 @@ async function toggleSOSFlashlight() {
         btn.style.background = "#4527a0";
         return;
     }
-    // ... rest of your code
 
     try {
+        // Request camera for the flashlight
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         const track = stream.getVideoTracks()[0];
         isFlashing = true;
         btn.innerHTML = "🛑 Stop SOS Light";
         btn.style.background = "#ff1744";
 
-        // Morse Code SOS Pattern: 3 Short, 3 Long, 3 Short
+        // Morse SOS Pattern: 3 Short, 3 Long, 3 Short
         const pattern = [200,200, 200,200, 200,600, 600,200, 600,200, 600,600, 200,200, 200,200, 200,1000];
         let step = 0;
 
         const flashAndBeep = async () => {
             if (!isFlashing) {
-                track.applyConstraints({ advanced: [{ torch: false }] });
+                // Cleanup: Turn off torch and stop camera
+                await track.applyConstraints({ advanced: [{ torch: false }] });
                 stream.getTracks().forEach(t => t.stop());
                 return;
             }
+
             const isOn = step % 2 === 0;
             const duration = pattern[step];
 
+            // Toggle Light
             await track.applyConstraints({ advanced: [{ torch: isOn }] });
-            if (isOn) playBeep(duration);
+
+            // Toggle Sound
+            if (isOn) {
+                playBeep(duration);
+            }
 
             setTimeout(() => {
                 step = (step + 1) % pattern.length;
                 flashAndBeep();
             }, duration);
         };
+        
         flashAndBeep();
-    } catch (e) { alert("Flashlight/Sound access denied."); isFlashing = false; }
+    } catch (e) { 
+        console.error(e);
+        alert("Permission Denied: Please allow Camera access for the SOS Light."); 
+        isFlashing = false;
+    }
 }
+
+
+
+        
 
 function playBeep(duration) {
     const oscillator = audioCtx.createOscillator();
@@ -296,4 +312,5 @@ function haptic(type) {
     if (!navigator.vibrate) return;
     type === 'panic' ? navigator.vibrate([500, 200, 500, 200, 500]) : navigator.vibrate(40);
 }
+
 
