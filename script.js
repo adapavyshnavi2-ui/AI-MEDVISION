@@ -111,6 +111,11 @@ function callAmbulance() { window.location.href = "tel:108"; }
 let isFlashing = false;
 
 async function toggleSOSFlashlight() {
+    // FIX: This resumes the audio system when the user taps the button
+    if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+    }
+
     const btn = document.getElementById('flash-btn');
     if (isFlashing) {
         isFlashing = false;
@@ -118,6 +123,7 @@ async function toggleSOSFlashlight() {
         btn.style.background = "#4527a0";
         return;
     }
+    // ... rest of your code
 
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
@@ -290,3 +296,4 @@ function haptic(type) {
     if (!navigator.vibrate) return;
     type === 'panic' ? navigator.vibrate([500, 200, 500, 200, 500]) : navigator.vibrate(40);
 }
+
