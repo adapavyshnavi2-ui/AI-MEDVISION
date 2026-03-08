@@ -4,7 +4,7 @@ let rawCoords = { lat: 0, lon: 0 };
 let currentLang = 'en-IN'; 
 let recognition = null; 
 
-// 🔊 AUDIO SYSTEM (Fixed Path for GitHub Pages)
+// 🔊 AUDIO SYSTEM
 const emergencySiren = new Audio('siren.mp3'); 
 emergencySiren.loop = true; 
 
@@ -99,13 +99,72 @@ function stopEmergencySiren() {
 
 function sendSOSMessage(reason) {
     const contactNumber = "108"; 
-    // Updated Template Literal for SOS SMS
     const mapsLink = `https://www.google.com/maps?q=${rawCoords.lat},${rawCoords.lon}`;
     const messageBody = `🆘 EMERGENCY SOS\nReason: ${reason}\nLoc: ${locationStr}\nMap: ${mapsLink}`;
     window.location.href = `sms:${contactNumber}?body=${encodeURIComponent(messageBody)}`;
 }
 
 function callAmbulance() { window.location.href = "tel:108"; }
+
+// 🔦 FEATURE: SOS MORSE CODE FLASHLIGHT
+let isFlashing = false;
+
+async function toggleSOSFlashlight() {
+    const btn = document.getElementById('flash-btn');
+    if (isFlashing) {
+        isFlashing = false;
+        btn.innerHTML = "🔦 Morse SOS Light";
+        btn.style.background = "#4527a0";
+        return;
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        const track = stream.getVideoTracks()[0];
+        isFlashing = true;
+        btn.innerHTML = "🛑 Stop SOS Light";
+        btn.style.background = "#ff1744";
+
+        const pattern = [200,200, 200,200, 200,600, 600,200, 600,200, 600,600, 200,200, 200,200, 200,1000];
+        let step = 0;
+
+        const flash = async () => {
+            if (!isFlashing) {
+                track.applyConstraints({ advanced: [{ torch: false }] });
+                stream.getTracks().forEach(t => t.stop());
+                return;
+            }
+            const isOn = step % 2 === 0;
+            await track.applyConstraints({ advanced: [{ torch: isOn }] });
+            setTimeout(() => {
+                step = (step + 1) % pattern.length;
+                flash();
+            }, pattern[step]);
+        };
+        flash();
+    } catch (e) { alert("Flashlight access denied or not supported."); }
+}
+
+// 📚 FEATURE: OFFLINE FIRST-AID GUIDES
+const firstAidData = {
+    "Snake Bite": "1. Keep calm. 2. Immobilize the limb. 3. Keep bite below heart level. 4. Clean with water. 5. DO NOT suck venom.",
+    "Heat Stroke": "1. Move to shade. 2. Cool with water/ice packs on neck/armpits. 3. Sip water slowly.",
+    "Severe Bleeding": "1. Apply direct pressure with clean cloth. 2. Elevate wound. 3. Do not remove soaked cloth.",
+    "Choking": "1. 5 back blows. 2. 5 abdominal thrusts (Heimlich). 3. Repeat until clear."
+};
+
+function showFirstAid() {
+    const modal = document.getElementById('first-aid-modal');
+    const content = document.getElementById('first-aid-content');
+    modal.style.display = "block";
+    content.innerHTML = Object.keys(firstAidData).map(key => `
+        <div style="background:#222; padding:15px; border-radius:10px; margin-bottom:10px; border-left:4px solid var(--primary);">
+            <h4 style="margin:0; color:var(--primary);">${key}</h4>
+            <p style="font-size:14px; color:#ccc;">${firstAidData[key]}</p>
+        </div>`).join('');
+}
+
+function closeFirstAid() { document.getElementById('first-aid-modal').style.display = "none"; }
 
 // ⌨️ INPUT METHODS
 function addTextSymptom() {
@@ -132,33 +191,27 @@ function removeSymptom(index) {
 const analyzeBtn = document.getElementById("analyze-btn");
 if(analyzeBtn) analyzeBtn.onclick = () => {
     if (symptoms.length === 0) return alert("Please add symptoms first!");
-    
     const resultArea = document.getElementById("result");
     resultArea.innerHTML = `<div class="loader-container"><div class="heart-pulse">❤️</div><p>Scanning Risks...</p></div>`;
     
     setTimeout(() => {
         const symptomsStr = symptoms.join(" ").toLowerCase();
         let severity = "LOW";
-        let analysis = "Assessment complete. No immediate life-threatening risks detected. Rest and keep hydrated.";
+        let analysis = "Assessment complete. No immediate life-threatening risks detected.";
 
-        if (symptomsStr.includes("chest") || symptomsStr.includes("breath") || symptomsStr.includes("unconscious") || symptomsStr.includes("heart")) {
+        if (symptomsStr.includes("chest") || symptomsStr.includes("breath") || symptomsStr.includes("unconscious")) {
             severity = "EMERGENCY";
-            analysis = "🚨 CRITICAL: High risk of Cardiac or Respiratory distress. Please seek immediate help!";
-        } else if (symptomsStr.includes("fever") || symptomsStr.includes("pain") || symptomsStr.includes("cough") || symptomsStr.includes("headache")) {
+            analysis = "🚨 CRITICAL: High risk detected. Seek immediate help!";
+        } else if (symptomsStr.includes("fever") || symptomsStr.includes("pain")) {
             severity = "MEDIUM";
-            analysis = "⚠️ MODERATE: Symptoms require medical attention. Monitor vitals and visit a clinic.";
+            analysis = "⚠️ MODERATE: Symptoms require medical attention.";
         }
 
-        renderResult({
-            severity: severity,
-            analysis: analysis,
-            hospital: "Nearest Emergency Hospital",
-            h_phone: "108"
-        });
+        renderResult({ severity, analysis, hospital: "Nearest Emergency Hospital", h_phone: "108" });
     }, 1500); 
 };
 
-// 📊 RENDERING RESULTS (Fixed Dynamic Map Search)
+// 📊 RENDERING RESULTS
 function renderResult(data) {
     const resultArea = document.getElementById("result");
     const severity = data.severity || "LOW";
@@ -172,40 +225,23 @@ function renderResult(data) {
         <div class="glass-card result-card ${severity.toLowerCase()}">
             <h3 style="margin:0;">📋 Analysis: ${severity}</h3>
             <p style="line-height:1.6; margin: 15px 0;">${data.analysis}</p>
-            
             <div id="emergency-hub" style="display: flex; flex-direction: column; background: white; padding: 15px; border-radius: 12px; border: 1px solid #ddd; text-align: center; gap: 10px;">
-                <p style="color: black; font-weight: 800; font-size: 1.1em; margin: 0;">
-                    🏥 ${data.hospital}
-                </p>
+                <p style="color: black; font-weight: 800; font-size: 1.1em; margin: 0;">🏥 ${data.hospital}</p>
                 <button class="emergency-btn" style="background:#d32f2f; color:white;" onclick="window.location.href='tel:${data.h_phone}'">📞 Call 108</button>
-                <button class="emergency-btn" style="background:#10b981; color:white;" onclick="window.open('${mapSearchUrl}', '_blank')">
-                    📍 Start Navigation
-                </button>
-                
-                <button class="emergency-btn" style="background:#1a237e; color:white;" onclick="generateMedicQR()">
-                    📲 Generate Medic QR
-                </button>
+                <button class="emergency-btn" style="background:#10b981; color:white;" onclick="window.open('${mapSearchUrl}', '_blank')">📍 Start Navigation</button>
+                <button class="emergency-btn" style="background:#1a237e; color:white;" onclick="generateMedicQR()">📲 Generate Medic QR</button>
                 <div id="qrcode-container" style="display:none; margin-top:10px; padding:10px; background:white; align-self:center;"></div>
             </div>
         </div>`;
     speakResult(data.analysis);
 }
 
-// NEW FUNCTION: Create the Offline QR Code
 function generateMedicQR() {
     const container = document.getElementById("qrcode-container");
-    container.innerHTML = ""; // Clear old QR
+    container.innerHTML = "";
     container.style.display = "block";
-    
-    // Create a compact data string for the medic
     const medicData = `VITALS-AI\nSev: ${symptoms.length > 0 ? 'Review' : 'Low'}\nSymp: ${symptoms.join(', ')}\nGPS: ${locationStr}`;
-    
-    new QRCode(container, {
-        text: medicData,
-        width: 150,
-        height: 150
-    });
-    
+    new QRCode(container, { text: medicData, width: 150, height: 150 });
     haptic('success');
 }
 
@@ -235,4 +271,3 @@ function haptic(type) {
     if (!navigator.vibrate) return;
     type === 'panic' ? navigator.vibrate([500, 200, 500, 200, 500]) : navigator.vibrate(40);
 }
-
