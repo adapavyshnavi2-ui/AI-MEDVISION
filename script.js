@@ -4,10 +4,11 @@ let rawCoords = { lat: 0, lon: 0 };
 let currentLang = 'en-IN'; 
 let recognition = null; 
 
-// 🔊 AUDIO SYSTEM - Initialized at the top
+// 🔊 AUDIO SYSTEM
 const emergencySiren = new Audio('siren.mp3'); 
 emergencySiren.loop = true; 
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// Initialize context (may start suspended)
+let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 // 📍 HIGH-PRECISION LOCATION
 navigator.geolocation.getCurrentPosition(p => {
@@ -74,7 +75,7 @@ if (startBtn) {
 function resetVoiceUI() {
     if (!startBtn) return;
     startBtn.innerText = (currentLang === 'te-IN') ? "మాట్లాడండి" : 
-                        (currentLang === 'hi-IN') ? "बात करने के लिए टैప करें" : "🎤 Tap to Speak";
+                        (currentLang === 'hi-IN') ? "बात करने के लिए टैप करें" : "🎤 Tap to Speak";
     startBtn.style.background = ""; 
 }
 
@@ -111,9 +112,11 @@ function callAmbulance() { window.location.href = "tel:108"; }
 let isFlashing = false;
 
 async function toggleSOSFlashlight() {
-    // UNLOCK AUDIO: Critical for browsers that block sound
+    // 1. RE-INITIALIZE/RESUME AUDIO: Crucial for mobile browsers
     if (audioCtx.state === 'suspended') {
         await audioCtx.resume();
+    } else if (audioCtx.state === 'closed') {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
 
     const btn = document.getElementById('flash-btn');
@@ -143,8 +146,11 @@ async function toggleSOSFlashlight() {
             const isOn = step % 2 === 0;
             const duration = pattern[step];
 
+            // Toggle Flashlight
             await track.applyConstraints({ advanced: [{ torch: isOn }] });
-            if (isOn) playBeep(duration); // Play the beep during the light pulse
+            
+            // Toggle Sound Pulse
+            if (isOn) playBeep(duration); 
 
             setTimeout(() => {
                 step = (step + 1) % pattern.length;
@@ -153,26 +159,30 @@ async function toggleSOSFlashlight() {
         };
         flashAndBeep();
     } catch (e) { 
-        alert("Camera or Sound access denied. Please allow permissions."); 
+        alert("Camera or Sound access denied. Ensure you are on HTTPS."); 
         isFlashing = false; 
     }
 }
 
 function playBeep(duration) {
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch medical beep
-    
-    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + (duration / 1000));
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + (duration / 1000));
+    try {
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
+        
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + (duration / 1000));
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + (duration / 1000));
+    } catch (err) {
+        console.error("Audio pulse failed:", err);
+    }
 }
 
 // 📚 FEATURE: OFFLINE FIRST-AID GUIDES
@@ -249,7 +259,8 @@ function renderResult(data) {
     if (severity === "EMERGENCY") triggerGlobalEmergency("Critical Symptoms Detected");
     else stopEmergencySiren();
 
-    const mapSearchUrl = `https://www.google.com/maps/search/?api=1&query=${rawCoords.lat},${rawCoords.lon}`;
+    // FIXED TEMPLATE LITERAL
+    const mapSearchUrl = `http://googleusercontent.com/maps.google.com/search?q=${rawCoords.lat},${rawCoords.lon}`;
 
     resultArea.innerHTML = `
         <div class="glass-card result-card ${severity.toLowerCase()}">
