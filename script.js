@@ -7,7 +7,10 @@ let recognition = null;
 // 🔊 AUDIO SYSTEM
 const emergencySiren = new Audio('siren.mp3'); 
 emergencySiren.loop = true; 
-// Initialize context (may start suspended)
+
+// 1. ADD THIS: Pre-recorded backup beep for SOS
+const sosSound = new Audio('https://physicscatalyst.com/article/wp-content/uploads/2023/10/beep-07a.mp3');
+
 let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 // 📍 HIGH-PRECISION LOCATION
@@ -26,7 +29,7 @@ function changeLang(lang) {
     window.speechSynthesis.cancel();
     
     let msg = (lang === 'te-IN') ? "తెలుగు భాష సెట్ చేయబడింది" : 
-              (lang === 'hi-IN') ? "हिंदी भाषा सक्रिय है" : "English language activated";
+              (lang === 'hi-IN') ? "हिंदी భాష सक्रिय है" : "English language activated";
     
     if (lang === 'te-IN') updateUIForLang("మాట్లాడండి", "🚑 అంబులెన్స్ కాల్", "విశ్లేషణ ప్రారంభించండి");
     else if (lang === 'hi-IN') updateUIForLang("बात करने के लिए टैप करें", "🚑 एम्बुलेंस कॉल", "विश्लेषण शुरू करें");
@@ -108,16 +111,13 @@ function sendSOSMessage(reason) {
 
 function callAmbulance() { window.location.href = "tel:108"; }
 
-// 🔦 FEATURE: SOS MORSE CODE FLASHLIGHT WITH AUDIO FIX
+// 🔦 FEATURE: SOS MORSE CODE FLASHLIGHT
 let isFlashing = false;
 
 async function toggleSOSFlashlight() {
-    // 1. RE-INITIALIZE/RESUME AUDIO: Crucial for mobile browsers
-    if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-    } else if (audioCtx.state === 'closed') {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
+    // 2. UNLOCK BOTH SYSTEMS
+    if (audioCtx.state === 'suspended') { await audioCtx.resume(); }
+    sosSound.play().then(() => { sosSound.pause(); sosSound.currentTime = 0; }).catch(() => {});
 
     const btn = document.getElementById('flash-btn');
     if (isFlashing) {
@@ -146,10 +146,7 @@ async function toggleSOSFlashlight() {
             const isOn = step % 2 === 0;
             const duration = pattern[step];
 
-            // Toggle Flashlight
             await track.applyConstraints({ advanced: [{ torch: isOn }] });
-            
-            // Toggle Sound Pulse
             if (isOn) playBeep(duration); 
 
             setTimeout(() => {
@@ -159,30 +156,27 @@ async function toggleSOSFlashlight() {
         };
         flashAndBeep();
     } catch (e) { 
-        alert("Camera or Sound access denied. Ensure you are on HTTPS."); 
+        alert("Permissions denied."); 
         isFlashing = false; 
     }
 }
 
 function playBeep(duration) {
-    try {
+    // 3. TRY FILE FIRST (More reliable on mobile)
+    sosSound.currentTime = 0;
+    sosSound.play().catch(() => {
+        // Fallback to Math Beep if file fails
         const oscillator = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
-        
         oscillator.type = 'sine';
         oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
-        
         gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + (duration / 1000));
-        
         oscillator.connect(gainNode);
         gainNode.connect(audioCtx.destination);
-        
         oscillator.start();
         oscillator.stop(audioCtx.currentTime + (duration / 1000));
-    } catch (err) {
-        console.error("Audio pulse failed:", err);
-    }
+    });
 }
 
 // 📚 FEATURE: OFFLINE FIRST-AID GUIDES
@@ -259,7 +253,6 @@ function renderResult(data) {
     if (severity === "EMERGENCY") triggerGlobalEmergency("Critical Symptoms Detected");
     else stopEmergencySiren();
 
-    // FIXED TEMPLATE LITERAL
     const mapSearchUrl = `http://googleusercontent.com/maps.google.com/search?q=${rawCoords.lat},${rawCoords.lon}`;
 
     resultArea.innerHTML = `
