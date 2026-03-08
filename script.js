@@ -2,22 +2,12 @@ let symptoms = [];
 let locationStr = "GPS: Not Available";
 let rawCoords = { lat: 0, lon: 0 };
 let currentLang = 'en-IN'; 
+let lastShake = 0;
+let motionEnabled = false;
 let recognition = null; 
 
-// 🔒 THE MEDICAL VAULT SYSTEM (Step 2)
-function sealSymptom(symptom) {
-    const packet = {
-        id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36),
-        data: btoa(unescape(encodeURIComponent(symptom))),
-        timestamp: new Date().toISOString()
-    };
-    let vault = JSON.parse(localStorage.getItem('vitals_vault') || "[]");
-    vault.push(packet);
-    localStorage.setItem('vitals_vault', JSON.stringify(vault));
-}
-
 // 🔊 AUDIO SYSTEM
-const emergencySiren = new Audio('siren.mp3'); 
+const emergencySiren = new Audio('siren.mp3');
 emergencySiren.loop = true; 
 
 // 📍 HIGH-PRECISION LOCATION
@@ -65,7 +55,6 @@ if (startBtn) {
         recognition.onresult = (event) => {
             const transcript = event.results[0][0].transcript;
             symptoms.push(transcript);
-            sealSymptom(transcript);
             updateChips();
             speakResult(currentLang === 'en-IN' ? "Added " + transcript : "చేర్చబడింది " + transcript);
         };
@@ -78,6 +67,38 @@ function resetVoiceUI() {
     if (!startBtn) return;
     startBtn.innerText = (currentLang === 'te-IN') ? "మాట్లాడండి" : (currentLang === 'hi-IN') ? "बात करने के लिए टैप करें" : "🎤 Tap to Speak";
     startBtn.style.background = ""; 
+}
+
+// ♿ ACCESSIBILITY: SHAKE-TO-SOS
+async function enableMotionSensors(event) {
+    const btn = event.currentTarget; 
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        try {
+            const permission = await DeviceMotionEvent.requestPermission();
+            if (permission === 'granted') activateMotionLogic(btn);
+        } catch (err) { alert("❌ Error: " + err); }
+    } else { activateMotionLogic(btn); }
+}
+
+function activateMotionLogic(btn) {
+    window.addEventListener('devicemotion', handleMotion, true);
+    motionEnabled = true;
+    haptic('success');
+    btn.style.background = "#10b981"; 
+    btn.innerHTML = "✅ Motion SOS Active";
+}
+
+function handleMotion(event) {
+    let acc = event.accelerationIncludingGravity;
+    if (!acc) return;
+    let totalAcc = Math.abs(acc.x) + Math.abs(acc.y) + Math.abs(acc.z);
+    if (totalAcc > 28) { 
+        let now = Date.now();
+        if (now - lastShake > 5000) {
+            lastShake = now;
+            triggerGlobalEmergency("Shake Detected");
+        }
+    }
 }
 
 // 🆘 EMERGENCY SYSTEM
@@ -98,7 +119,6 @@ function stopEmergencySiren() {
     document.body.classList.remove('emergency-flash');
 }
 
-// FIX: Fixed the $ sign in the template literal
 function sendSOSMessage(reason) {
     const contactNumber = "108"; 
     const mapsLink = `https://www.google.com/maps?q=${rawCoords.lat},${rawCoords.lon}`;
@@ -112,9 +132,7 @@ function callAmbulance() { window.location.href = "tel:108"; }
 function addTextSymptom() {
     const input = document.getElementById("text-input");
     if (!input || !input.value.trim()) return;
-    const val = input.value.trim();
-    symptoms.push(val);
-    sealSymptom(val);
+    symptoms.push(input.value.trim());
     updateChips();
     input.value = "";
     haptic('success');
@@ -122,7 +140,6 @@ function addTextSymptom() {
 
 function addIconSymptom(name) {
     symptoms.push(name);
-    sealSymptom(name);
     updateChips();
     haptic('success');
 }
@@ -132,28 +149,32 @@ function removeSymptom(index) {
     updateChips();
 }
 
-// 🧠 LOCAL AI ANALYSIS
+// 🧠 LOCAL AI ANALYSIS (Fixed Connection Error)
 const analyzeBtn = document.getElementById("analyze-btn");
 if(analyzeBtn) analyzeBtn.onclick = () => {
     if (symptoms.length === 0) return alert("Please add symptoms first!");
     const resultArea = document.getElementById("result");
     resultArea.innerHTML = `<div class="loader-container"><div class="heart-pulse">❤️</div><p>Scanning Risks...</p></div>`;
+    
+    // Simulate AI thinking locally (No server needed)
     setTimeout(() => {
         const symptomsStr = symptoms.join(" ").toLowerCase();
         let severity = "LOW";
-        let analysis = "Assessment complete. No immediate life-threatening risks detected.";
-        if (symptomsStr.includes("chest") || symptomsStr.includes("breath") || symptomsStr.includes("heart") || symptomsStr.includes("unconscious")) {
+        let analysis = "Assessment complete. No immediate life-threatening risks detected. Rest and keep hydrated.";
+
+        if (symptomsStr.includes("chest") || symptomsStr.includes("breath") || symptomsStr.includes("heart")) {
             severity = "EMERGENCY";
-            analysis = "🚨 CRITICAL: High risk detected. Seek immediate help!";
+            analysis = "🚨 CRITICAL: High risk of Cardiac or Respiratory distress. Seek help!";
         } else if (symptomsStr.includes("fever") || symptomsStr.includes("pain")) {
             severity = "MEDIUM";
             analysis = "⚠️ MODERATE: Symptoms require medical attention.";
         }
-        renderResult({ severity, analysis, hospital: "Nearest Emergency Hospital", h_phone: "108" });
+        
+        renderResult({ severity, analysis, hospital: "Hospitals Near You", h_phone: "108" });
     }, 1500); 
 };
 
-// 📊 RENDERING RESULTS (Fixed Navigation and Black Text)
+// 📊 RENDERING RESULTS (Black Text & Green Button)
 function renderResult(data) {
     const resultArea = document.getElementById("result");
     const severity = data.severity || "LOW"; 
@@ -161,39 +182,31 @@ function renderResult(data) {
     if (severity === "EMERGENCY") triggerGlobalEmergency("Critical Symptoms Detected"); 
     else stopEmergencySiren();
 
-    // FIX: Corrected Maps Search URL for real hospitals
-    const mapSearchUrl = `https://www.google.com/maps/search/hospitals/@${rawCoords.lat},${rawCoords.lon},14z`;
+    // Map link for searching "Hospital" near current GPS
+    const mapSearchUrl = `https://www.google.com/maps/search/hospital/@${rawCoords.lat},${rawCoords.lon},14z`;
 
     resultArea.innerHTML = `
         <div class="glass-card result-card ${severity.toLowerCase()}">
             <h3 style="margin:0;">📋 Analysis: ${severity}</h3>
             <p style="line-height:1.6; margin: 15px 0;">${data.analysis}</p>
             
-            <div id="emergency-hub" style="display: flex; flex-direction: column; background: rgba(255,255,255,0.9); padding: 15px; border-radius: 12px; border: 1px solid #ddd; text-align: center; gap: 10px;">
-                
-                <p style="color: #000000; font-weight: bold; font-size: 1.2em; margin: 0;">
+            <div id="emergency-hub" style="display: flex; flex-direction: column; background: white; padding: 15px; border-radius: 12px; border: 1px solid #ddd; text-align: center; gap: 10px;">
+                <p style="color: black; font-weight: 800; font-size: 1.1em; margin: 0;">
                     🏥 ${data.hospital}
                 </p>
-
-                <button class="emergency-btn" style="width: 100%;" onclick="window.location.href='tel:${data.h_phone}'">
-                    📞 Call 108 Help
-                </button>
-
-                <button class="emergency-btn" style="width: 100%; background: #22c55e !important; color: white;" 
-                        onclick="window.open('${mapSearchUrl}', '_blank')">
+                <button class="emergency-btn" style="background:#d32f2f; color:white;" onclick="window.location.href='tel:${data.h_phone}'">📞 Call 108</button>
+                <button class="emergency-btn" style="background:#10b981; color:white;" onclick="window.open('${mapSearchUrl}', '_blank')">
                     📍 Start Navigation
                 </button>
-
             </div>
         </div>`;
-    
     speakResult(data.analysis);
 }
 
 function clearAllData() {
     symptoms = []; 
     updateChips(); 
-    document.getElementById("result").innerHTML = `<p style="text-align:center; color:#94a3b8; margin-top:50px;">📉 No active analysis.</p>`;
+    document.getElementById("result").innerHTML = `<p style="text-align:center; color:#94a3b8; margin-top:100px;">📉 No active analysis.</p>`;
     stopEmergencySiren();
     haptic('success');
 }
